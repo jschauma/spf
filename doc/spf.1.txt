@@ -1,0 +1,62 @@
+spf(1)			     General Commands Manual			  spf(1)
+
+NAME
+     spf - report on the given domain's use of SPF
+
+SYNOPSIS
+     spf [-Vhjv] [-r address] domain
+
+DESCRIPTION
+     The spf tool allows you to inspect the Sender Policy Framework DNS records
+     for the given domain.
+
+OPTIONS
+     The following options are supported by spf:
+
+     -V		 Print version information and exit.
+
+     -h		 Display help and exit.
+
+     -j		 Generate output in json format.
+
+     -r address	 Explicitly query this resolver.
+
+     -v		 Be verbose.  Can be specified multiple times.
+
+DETAILS
+     The Sender Policy Framework (SPF) defined in RFC7208 specifies the format
+     for the SPF DNS entries a domain may choose to apply.  These entries can
+     range from the straight forward to the complex, harboring certain surprises
+     or unintenionally obscuring important information, such as when one domain
+     includes the SPF records of another domain.
+
+     spf can be used to report on the comprehensive ruleset derived from the DNS
+     record.  It does that by counting CIDRs, resolving e.g., MX records, and
+     recursively looking up SPF records of any included domains.
+
+EXAMPLES
+     The following examples illustrate common usage of this tool.
+
+     To report on the SPF records for the domain netmeister.org:
+
+	   spf netmeister.org
+
+     To query Quad9's public resolver for the same SPF records and report the
+     results in json format:
+
+	   spf -r 2620:fe::fe -j netmeister.org
+
+EXIT STATUS
+     The spf utility exits 0 on success, and >0 if an error occurs.
+
+SEE ALSO
+     dig(1)
+
+HISTORY
+     spf was originally written by Jan Schaumann <jschauma@netmeister.org> in
+     July 2022.
+
+BUGS
+     Please file bugs and feature requests by emailing the author.
+
+NetBSD 8.0			 August 9, 2022			      NetBSD 8.0

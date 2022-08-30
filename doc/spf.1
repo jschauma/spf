@@ -1,0 +1,75 @@
+.\"
+.Dd August 09, 2022
+.Dt spf 1
+.Os
+.Sh NAME
+.Nm spf
+.Nd report on the given domain's use of SPF
+.Sh SYNOPSIS
+.Nm
+.Op Fl Vhjv
+.Op Fl r Ar address
+.Ar domain
+.Sh DESCRIPTION
+The
+.Nm
+tool allows you to inspect the Sender Policy Framework
+DNS records for the given domain.
+.Sh OPTIONS
+The following options are supported by
+.Nm :
+.Bl -tag -width r_address_
+.It Fl V
+Print version information and exit.
+.It Fl h
+Display help and exit.
+.It Fl j
+Generate output in json format.
+.It Fl r Ar address
+Explicitly query this resolver.
+.It Fl v
+Be verbose.
+Can be specified multiple times.
+.El
+.Sh DETAILS
+The Sender Policy Framework (SPF) defined in RFC7208
+specifies the format for the SPF DNS entries a domain
+may choose to apply.
+These entries can range from the straight forward to
+the complex, harboring certain surprises or
+unintenionally obscuring important information, such
+as when one domain includes the SPF records of another
+domain.
+.Pp
+.Nm
+can be used to report on the comprehensive ruleset
+derived from the DNS record.
+It does that by counting CIDRs, resolving e.g., MX
+records, and recursively looking up SPF records of any
+included domains.
+.Sh EXAMPLES
+The following examples illustrate common usage of this tool.
+.Pp
+To report on the SPF records for the domain
+netmeister.org:
+.Bd -literal -offset indent
+spf netmeister.org
+.Ed
+.Pp
+To query Quad9's public resolver for the same SPF
+records and report the results in json format:
+.Bd -literal -offset indent
+spf -r 2620:fe::fe -j netmeister.org
+.Ed
+.Sh EXIT STATUS
+.Ex -std 
+.Sh SEE ALSO
+.Xr dig 1
+.Sh HISTORY
+.Nm
+was originally written by
+.An Jan Schaumann
+.Aq jschauma@netmeister.org
+in July 2022.
+.Sh BUGS
+Please file bugs and feature requests by emailing the author.
