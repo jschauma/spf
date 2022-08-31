@@ -23,6 +23,11 @@ the following modules installed:
 * Net::DNS
 * Net::Netmask
 
+On Debian and related systems, you may be able to
+install these dependencies with:
+
+`sudo apt install libjson-perl libnet-dns-perl libnet-netmask-perl`
+
 Installation
 ============
 
