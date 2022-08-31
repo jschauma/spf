@@ -1,0 +1,5 @@
+0.2 (2022-08-31)
+* match "a:domain/v4cidr//v6dir" correctly
+
+0.1 (2022-08-30)
+* Hello, World!

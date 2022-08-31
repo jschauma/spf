@@ -43,7 +43,7 @@ use constant MAXLENGTH => 450;
 my %OPTS = ( v => 0 );
 my $PROGNAME = basename($0);
 my $RETVAL = 0;
-my $VERSION = 0.1;
+my $VERSION = 0.2;
 
 # The final result in json representation:
 # {
@@ -315,7 +315,7 @@ sub expandAorMX($$$$$$) {
 	$RESULT{"expanded"}{$domain}{$q}{$which}{"names"} = \@names;
 
 	my @iparray = keys(%ipaddrs);
-	if ($v4cidr) {
+	if ($v4cidr || $v6cidr) {
 		my $ips = expandAMXCIDR($domain, $q, "a", \@iparray, $v4cidr, $v6cidr);
 		if (!$ips) {
 			return TRUE;
@@ -335,15 +335,19 @@ sub expandAorMX($$$$$$) {
 sub expandAMXCIDR($$$$$$) {
 	my ($domain, $q, $which, $aref, $v4cidr, $v6cidr) = @_;
 
+	if (!$v4cidr) {
+		$v4cidr = 32;
+	}
+	if (!$v6cidr) {
+		$v6cidr = 128;
+	}
+
 	my @ips;
 	my $cidr = $v4cidr;
 	foreach my $ip (@{$aref}) {
 		if (inet_pton(PF_INET, $ip)) {
 			push(@ips, "$ip/$v4cidr");
 		} elsif (inet_pton(PF_INET6, $ip)) {
-			if (!$v6cidr) {
-				$v6cidr = 128;
-			}
 			push(@ips, "$ip/$v6cidr");
 			$cidr = $v6cidr;
 		} else {
@@ -786,26 +790,30 @@ sub parseAMX($$$) {
 		return ($spec, undef, undef);
 	}
 
-	# mx:dom/4cidr/6cidr -- use $dom, then add cidr to each IP
+	# mx:dom/4cidr//6cidr -- use $dom, then add cidr to each IP
+	# mx:dom//6cidr -- use $dom, then add cidr to each IP
 	# mx:dom/4cidr -- use $dom, then add cidr to each IP
 	# mx:dom -- use $dom, no cidr
-	if (($sep eq ":") && ($spec =~ m/^([^\/]+)(\/(([0-9]+)(\/([0-9]+))?)?)?$/)) {
+	if (($sep eq ":") && ($spec =~ m/^([^\/]+)(\/([0-9]+))?(\/\/([0-9]+))?$/)) {
 		my $dom = $1;
-		my $v4 = $4;
-		my $v6 = $6;
-		if (!$v4 && $v6) {
-			return (undef, undef, undef);
-		}
+		my $v4 = $3;
+		my $v6 = $5;
 		if (($v4 && $v4 > 32) || ($v6 && $v6 > 128)) {
 			return (undef, undef, undef);
 		}
-		return ($1, $v4, $v6);
+		return ($dom, $v4, $v6);
 	}
 
-	# mx/4cidr/6cidr
-	# mx/4cidr
-	if (($sep eq "/") && ($spec =~ m/^([0-9]+)(\/([0-9]+))?$/)) {
-		return ($domain, $1, $3)
+	if ($sep eq "/") {
+		# mx//6cidr
+		if ($spec =~ m/^\/([0-9]+)$/) {
+			return ($domain, undef, $1);
+		}
+		# mx/4cidr//6cidr
+		# mx/4cidr
+		if ($spec =~ m/^([0-9]+)(\/\/([0-9]+))?$/) {
+			return ($domain, $1, $3);
+		}
 	}
 
 	# everything else is a syntax error
