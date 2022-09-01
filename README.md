@@ -28,6 +28,10 @@ install these dependencies with:
 
 `sudo apt install libjson-perl libnet-dns-perl libnet-netmask-perl`
 
+On FreeBSD, you can install these dependancies with:
+
+`sudo pkg install p5-JSON p5-Net-DNS p5-Net-Netmask`
+
 Installation
 ============
 
