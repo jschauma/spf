@@ -316,13 +316,13 @@ sub expandAorMX($$$$$$) {
 
 	my @iparray = keys(%ipaddrs);
 	if ($v4cidr || $v6cidr) {
-		my $ips = expandAMXCIDR($domain, $q, $which, \@iparray, $v4cidr, $v6cidr);
-		if (!$ips) {
+		my $cidrs = expandAMXCIDR($domain, $q, $which, \@iparray, $v4cidr, $v6cidr);
+		if (!$cidrs) {
 			return TRUE;
 		}
 
-		$RESULT{"expanded"}{$domain}{$q}{$which}{"cidrs"} = \@{$ips};
-		$RESULT{"expanded"}{$domain}{$q}{"count"}{"${which}-cidrs"} = scalar(@{$ips});
+		$RESULT{"expanded"}{$domain}{$q}{$which}{"cidrs"} = \@{$cidrs};
+		$RESULT{"expanded"}{$domain}{$q}{"count"}{"${which}-cidrs"} = scalar(@{$cidrs});
 	} else {
 		$RESULT{"expanded"}{$domain}{$q}{$which}{"ips"} = \@iparray;
 		$RESULT{"expanded"}{$domain}{$q}{"count"}{"${which}-ips"} += scalar(@iparray);
@@ -343,13 +343,13 @@ sub expandAMXCIDR($$$$$$) {
 		$v6cidr = 128;
 	}
 
-	my @ips;
+	my @cidrs;
 	my $cidr = $v4cidr;
 	foreach my $ip (@{$aref}) {
 		if (inet_pton(PF_INET, $ip)) {
-			push(@ips, "$ip/$v4cidr");
+			push(@cidrs, "$ip/$v4cidr");
 		} elsif (inet_pton(PF_INET6, $ip)) {
-			push(@ips, "$ip/$v6cidr");
+			push(@cidrs, "$ip/$v6cidr");
 			$cidr = $v6cidr;
 		} else {
 			spfError("Invalid IP address $ip for '$domain'.", $domain);
@@ -357,8 +357,8 @@ sub expandAMXCIDR($$$$$$) {
 		}
 	}
 
-	$RESULT{"expanded"}{$domain}{$q}{"count"}{"${which}-cidrs"} = scalar(@ips);
-	foreach my $c (@ips) {
+	$RESULT{"expanded"}{$domain}{$q}{"count"}{"${which}-cidrs"} = scalar(@cidrs);
+	foreach my $c (@cidrs) {
 		my $count = getCidrCount($c, $domain);
 		if ($count < 0) {
 			spfError("Invalid $which mechanism '${which}/${cidr}' for domain '$domain' found.", $domain);
@@ -371,7 +371,7 @@ sub expandAMXCIDR($$$$$$) {
 		}
 	}
 
-	return \@ips;
+	return \@cidrs;
 }
 
 sub expandCIDR($$$$) {
@@ -1113,10 +1113,11 @@ sub usage($) {
 	my $FH = $err ? \*STDERR : \*STDOUT;
 
 	print $FH <<EOH
-Usage: $PROGNAME [-Vhjv] [-r address] domain
+Usage: $PROGNAME [-Vhjv] [-r address] -p policy | domain
         -V          print version information and exit
 	-h          print this help and exit
 	-j          print output in json format
+	-p polіcy   expand the given policy
 	-r address  explicitly query this resolver
 	-v          increase verbosity
 EOH
