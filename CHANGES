@@ -1,3 +1,6 @@
+
+* add '-p' option to pass a policy to expand
+
 0.2 (2022-08-31)
 * match "a:domain/v4cidr//v6dir" correctly
 

@@ -316,10 +316,11 @@ sub expandAorMX($$$$$$) {
 
 	my @iparray = keys(%ipaddrs);
 	if ($v4cidr || $v6cidr) {
-		my $ips = expandAMXCIDR($domain, $q, "a", \@iparray, $v4cidr, $v6cidr);
+		my $ips = expandAMXCIDR($domain, $q, $which, \@iparray, $v4cidr, $v6cidr);
 		if (!$ips) {
 			return TRUE;
 		}
+
 		$RESULT{"expanded"}{$domain}{$q}{$which}{"cidrs"} = \@{$ips};
 		$RESULT{"expanded"}{$domain}{$q}{"count"}{"${which}-cidrs"} = scalar(@{$ips});
 	} else {
@@ -461,8 +462,18 @@ sub expandSPF($$$$) {
 	my @a = keys(%parents);
 	$RESULT{"expanded"}{$domain}{"parents"} = \@a;
 
-	my $spfText = getSPFText($res, $domain);
+	my $spfText;
+
+	if ($domain eq "none") {
+		$spfText = matchSPF($OPTS{'p'}, $domain);
+	} else {
+		$spfText = getSPFText($res, $domain);
+	}
+
 	if (!$spfText) {
+		if ($domain eq "none") {
+			error("Invalid policy given: '" . $OPTS{'p'} . "'", EXIT_FAILURE);
+		}
 		$RESULT{"expanded"}{$domain}{"valid"} = "invalid";
 		return;
 	}
@@ -562,6 +573,10 @@ sub expandSPF($$$$) {
 	}
 
 	if (defined($RESULT{"expanded"}{$domain}{"errors"})) {
+		if ($domain eq "none") {
+			error("Invalid policy given: '" . $OPTS{'p'} . "'", EXIT_FAILURE);
+		}
+
 		$RESULT{"expanded"}{$domain}{"valid"} = "invalid";
 	}
 }
@@ -675,16 +690,19 @@ sub getSPFText($$) {
 
 	my $spf;
 	foreach my $rr ($req->answer) {
+		my $tmp;
 		my $s = $rr->rdstring;
 		$s =~ s/"//g;
 		$s =~ s/[	\n"]//gi;
 
-		if ($s =~ m/^"?v=spf1 (.*)/si) {
-			my $l = length($s);
-			if ($l > MAXLENGTH) {
-				spfError("SPF record for '$domain' too long ($l > " . MAXLENGTH . ").", $domain, "warn");
+		$tmp = matchSPF($s, $domain);
+
+		if ($tmp) {
+			if ($spf) {
+				spfError("Multiple SPF policies found for '$domain'.", $domain);
+				last;
 			}
-			$spf = $1;
+			$spf = $tmp;
 		}
 	}
 
@@ -724,6 +742,7 @@ sub init() {
 			 "expand|e" 	=> \$OPTS{'e'},
 			 "help|h" 	=> \$OPTS{'h'},
 			 "json|j" 	=> \$OPTS{'j'},
+			 "policy|p=s"   => \$OPTS{'p'},
 			 "resolver|r=s"	=> \$OPTS{'r'},
 			 "verbose|v+" 	=> sub { $OPTS{'v'}++; },
 			 "version|V"	=> sub {
@@ -743,12 +762,17 @@ sub init() {
 		# NOTREACHED
 	}
 
-	if (scalar(@ARGV) != 1) {
-		error("Please specify exactly one domain.", EXIT_FAILURE);
+	if (((scalar(@ARGV) != 1) && (!$OPTS{'p'})) ||
+		       (scalar(@ARGV) && $OPTS{'p'})) {
+		error("Please specify exactly one domain or policy.", EXIT_FAILURE);
 		# NOTREACHED
 	}
 
-	$OPTS{'domain'} = $ARGV[0];
+	if (!$OPTS{'p'}) {
+		$OPTS{'domain'} = $ARGV[0];
+	} else {
+		$OPTS{'domain'} = "none";
+	}
 }
 
 sub main() {
@@ -775,6 +799,20 @@ sub main() {
 	}
 }
 
+sub matchSPF($$) {
+	my ($txt, $domain) = @_;
+	my $spf;
+
+	if ($txt =~ m/^"?v=spf1 (.*)/si) {
+		my $l = length($txt);
+		if ($l > MAXLENGTH) {
+			spfError("SPF record for '$domain' too long ($l > " . MAXLENGTH . ").", $domain, "warn");
+		}
+		$spf = $1;
+	}
+
+	return $spf;
+}
 
 sub parseAMX($$$) {
 	my ($domain, $sep, $spec) = @_;
@@ -1018,7 +1056,12 @@ sub printResults() {
 	printExpanded($domain, 1);
 
 	print "\n";
-	print "SPF record for domain '$domain': " . $RESULT{"expanded"}{$domain}{"valid"} . "\n";
+	my $m = "SPF record for domain '$domain': ";
+	if ($domain eq "none") {
+		$m = "Given SPF record                  : ";
+	}
+
+	print $m . $RESULT{"expanded"}{$domain}{"valid"} . "\n";
 	printWarningsAndErrors(0, $domain);
 
 	print "Total counts:\n";

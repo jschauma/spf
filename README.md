@@ -46,11 +46,12 @@ Please see the manual page for all details:
 
 
 ```
+```
 NAME
      spf - report on the given domain's use of SPF
 
 SYNOPSIS
-     spf [-Vhjv] [-r address] domain
+     spf [-Vhjv] [-p policy] [-r address] domain
 
 DESCRIPTION
      The spf tool allows you to inspect the Sender Policy Framework DNS records
@@ -64,6 +65,9 @@ OPTIONS
      -h		 Display help and exit.
 
      -j		 Generate output in json format.
+
+     -p policy	 Expand and report on the given policy.	 Note: policy needs to
+		 be quoted; see EXAMPLES.
 
      -r address	 Explicitly query this resolver.
 
@@ -91,6 +95,10 @@ EXAMPLES
      results in json format:
 
 	   spf -r 2620:fe::fe -j netmeister.org
+
+     To expand an arbitrary policy from the command-line:
+
+	   spf -p "v=spf1 a:example.com include:example.net -all"
 
 EXIT STATUS
      The spf utility exits 0 on success, and >0 if an error occurs.

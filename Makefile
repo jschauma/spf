@@ -26,7 +26,7 @@ clean:
 man: doc/${NAME}.1.txt
 
 doc/${NAME}.1.txt: doc/${NAME}.1
-	mandoc -c -O width=80 $? | col -b >$@
+	mandoc -T ascii -c -O width=80 $? | col -b >$@
 
 readme: man
 	sed -n -e '/^NAME/!p;//q' README.md >.readme
