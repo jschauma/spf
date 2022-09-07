@@ -23,14 +23,20 @@ the following modules installed:
 * Net::DNS
 * Net::Netmask
 
-On Debian and related systems, you may be able to
-install these dependencies with:
+You may be able to install these dependencies via:
 
+* NetBSD and other systems using [pkgsrc](https://pkgsrc.org):
+`sudo pkg_add p5-JSON p5-Net-DNS p5-Net-Netmask`
+or
+`sudo pkgin install p5-JSON p5-Net-DNS p5-Net-Netmask`
+* Debian and related systems:
 `sudo apt install libjson-perl libnet-dns-perl libnet-netmask-perl`
-
-On FreeBSD, you can install these dependencies with:
-
+* FreeBSD:
 `sudo pkg install p5-JSON p5-Net-DNS p5-Net-Netmask`
+
+You can also find a
+[Dockerfile](https://github.com/jschauma/spf/blob/main/misc/Dockerfile)
+in the 'misc' directory, if that's your jam.
 
 Installation
 ============
@@ -49,7 +55,6 @@ Documentation
 Please see the manual page for all details:
 
 
-```
 ```
 NAME
      spf - report on the given domain's use of SPF
