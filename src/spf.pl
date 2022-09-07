@@ -43,7 +43,7 @@ use constant MAXLENGTH => 450;
 my %OPTS = ( v => 0 );
 my $PROGNAME = basename($0);
 my $RETVAL = 0;
-my $VERSION = 0.2;
+my $VERSION = 0.3;
 
 # The final result in json representation:
 # {
@@ -52,31 +52,30 @@ my $VERSION = 0.2;
 #     "<domain>": {
 #       "all"     : mechanism,
 #       "errors"  : [ error, error, ...],
-#       "spf"     : "SPF record for the domain",
 #       "parents  : [ domain, domain, ...],
 #       "pass"    : {
 #         "a"       : {
-#           "cidrs"   : [ cidr, cidr, ...],
-#           "names"   : [ name, name, ...],
-#           "ips"     : [ IP, IP, IP, ... ],
+#           "cidrs"      : [ cidr, cidr, ...],
+#           "ips"        : [ ip, ip, ...],
+#           "names"      : [ name, name, ...],
+#           "directives" : [ a, a, ...],
 #         },
-#         "cidrs"   : {
-#             "ip4"      : [ ipv4-cidr, ... ],
-#             "ip6"      : [ ipv6-cidr, ... ],
-#         },
+#         "cidrs"        : [ cidr, cidr, ...],
 #         "count"   : {
-#           "a-names"  : count-of-a-names,
-#           "a-ips"    : count-of-a-ips,
-#           "exists"   : count-of-exists,
-#           "exp"      : count-of-exp,
-#           "include"  : count-of-includes,
-#           "ip4count" : count-of-all-v4-ips,
-#           "ip4cidrs" : count-of-v4-cidrs,
-#           "ip6count" : count-of-all-v6-ips,
-#           "ip6cidrs" : count-of-v6-cidrs,
-#           "mx-names" : count-of-mx-names,
-#           "mx-ips"   : count-of-mx-ips,
-#           "ptr"      : count-of-ptrs,
+#           "a-cidrs"       : count-of-a-cidrs,
+#           "a-directives"  : count-of-mx-names,
+#           "a-names"       : count-of-a-names,
+#           "exists"        : count-of-exists,
+#           "exp"           : count-of-exp,
+#           "include"       : count-of-includes,
+#           "ip4"           : count-of-v4-cidrs,
+#           "ip4count"      : count-of-all-v4-ips,
+#           "ip6"           : count-of-v6-cidrs,
+#           "ip6count"      : count-of-all-v6-ips,
+#           "mx-cidrs"      : count-of-mx-cidrs,
+#           "mx-directives" : count-of-mx-names,
+#           "mx-names"      : count-of-mx-names,
+#           "ptr"           : count-of-ptrs,
 #         },
 #         "exists"  : [ domain-spec, domain-spec, ...],
 #         "exp"     : [ domain-spec, domain-spec, ...],
@@ -84,12 +83,29 @@ my $VERSION = 0.2;
 #         "ip4"     : [ IP, IP, IP, ... ],
 #         "ip6"     : [ IP, IP, IP, ... ],
 #         "mx"      : {
-#           "cidrs"   : [ cidr, cidr, ...],
-#           "names"   : [ mx, mx, ...],
-#           "ips"     : [ IP, IP, IP, ... ],
+#           "cidrs"      : [ cidr, cidr, ...],
+#           "ips"        : [ ip, ip, ...],
+#           "names"      : [ name, name, ...],
+#           "directives" : [ mx, mx, ...],
 #         },
 #         "ptr"     : [ domain, domain, ...],
 #         "redirect": domain,
+#         "total" : {    present if the domain contains an include
+#           "a-cidrs"           : count-of-a-cidrs,
+#           "a-directives"      : count-of-mx-names,
+#           "exists"            : [ domain, domain, ...],
+#           "exp"               : [ domain, domain, ...],
+#           "include"           : [ domain, domain, ...],
+#           "include-directives : count,
+#           "ip4"               : [ cidr, cidr, ...],
+#           "ip4-directives     : count,
+#           "ip4count"          : count of all IPs,
+#           "ip6"               : [ cidr, cidr, ...],
+#           "ip6-directives     : count,
+#           "ip6count"          : count of all IPs,
+#           "ptr"               : [ ptr, ptr, ...],
+#           "redirect"          : [ domain, domain, ...],
+#          },
 #       },
 #       "neutral" : {
 #         as above
@@ -100,25 +116,13 @@ my $VERSION = 0.2;
 #       "fail"    : {
 #         as above
 #       }
+#       "spf"     : "SPF record for the domain",
 #       "valid"   : valid|invalid
 #       "warnings": [ warning, warning, ...],
 #     },
 #     "<domain2>" : {
 #       for each include/redirect, a full object as for 'domain' above
 #     },
-#     "total" : {
-#       "pass" : {
-#         "exists"   : count-of-exists,
-#         "exp"      : count-of-exp,
-#         "include"  : count-of-includes,
-#         "ip4cidrs" : count-of-v4-cidrs,
-#         "ip4count" : count of all IPs,
-#         "ip6cidrs" : count-of-v6-cidrs,
-#         "ip6count" : count of all IPs,
-#         "ptr"      : count-of-ptr,
-#         "redirect" : count-of-redirect,
-#      },
-#      repeat for other qualifiers
 #   }
 # }
 my %RESULT;
@@ -133,38 +137,32 @@ $RESULT{"lookups"} = -1;
 ### Subroutines
 ###
 
-sub addIPCounts($$$) {
-	my ($domain, $q, $aref) = @_;
-	my @ips = @{$aref};
-
-	my @v4 = grep(!/:/, @ips);
-	$RESULT{"expanded"}{$domain}{$q}{"count"}{"ip4count"} += scalar(@v4);
-
-	my @v6 = grep(/:/, @ips);
-	$RESULT{"expanded"}{$domain}{$q}{"count"}{"ip6count"} += scalar(@v6);
-}
-
 sub addTopCountsByQualifier($);
 sub addTopCountsByQualifier($) {
 	my ($domain) = @_;
+
 	verbose("Adding up top counts by qualifier for query '$domain'...", 1);
 
 	if (!defined($RESULT{"expanded"}{$domain})) {
 		return;
 	}
 
+	if ($RESULT{"state"}{"counted"}{$domain}) {
+		return;
+	}
+	$RESULT{"state"}{"counted"}{$domain} = 1;
+
+	my $top = $RESULT{"query"};
 	my %domainData = %{$RESULT{"expanded"}{$domain}};
+
 	if (defined($domainData{"redirect"})) {
 		my $d = $domainData{"redirect"};
 		verbose("Encountered redirect...", 2);
 		if (defined($RESULT{"redirect"}{$d})) {
-			warning("Redirect loop - already redirected through '$d'!");
 			return;
 		}
 
 		$RESULT{"redirect"}{$d} = 1;
-		addTopCountsByQualifier($d);
-		return;
 	}
 
 	foreach my $q (qw/fail neutral pass softfail/) {
@@ -172,69 +170,244 @@ sub addTopCountsByQualifier($) {
 			next;
 		}
 
-		if (!defined($domainData{$q}{"count"})) {
-			next;
-		}
+		countIPs($domain, $q);
 
-		my %counts = %{$domainData{$q}{"count"}};
+		if (defined($domainData{$q}{"count"})) {
+			my %counts = %{$domainData{$q}{"count"}};
 
-		foreach my $k (keys(%counts)) {
-			$RESULT{"total"}{$q}{$k} += $counts{$k};
+			foreach my $k (grep(!/-directives/, keys(%counts))) {
+				$RESULT{"expanded"}{$domain}{$q}{"total"}{$k} = $counts{$k};
+			}
 		}
 	}
 }
 
-sub addTotals($$$) {
-	my ($parent, $q, $dom) = @_;
+sub addTotalsFromDomainToParent($$$) {
+	my ($domain, $q, $parent) = @_;
 
-	verbose("Adding up '$q' totals for included domain '$dom' to '$parent'...", 2);
-
-	if (defined($RESULT{"expanded"}{$dom}{"warnings"})) {
-		push(@{$RESULT{"expanded"}{$parent}{"warnings"}},
-				@{$RESULT{"expanded"}{$dom}{"warnings"}});
+	my $msg = "Adding up '$q' totals for ";
+	if ($parent eq "top") {
+		$msg .= "top domain '$parent'";
+	} else {
+		$msg .= "included domain '$domain' to '$parent'";
 	}
 
-	# If an invalid included policy encounters an error, it returns an error
-	if ($RESULT{"expanded"}{$dom}{"valid"} eq "invalid") {
-		$RESULT{"expanded"}{$parent}{"valid"} = "invalid";
-		my @errors;
-		if (defined($RESULT{"expanded"}{$parent}{"errors"})) {
-			my (@errors, %e);
-			%e = map { $_ => 1 } @{$RESULT{"expanded"}{$parent}{"errors"}};
-			@errors = keys(%e);
+	verbose("$msg...", 2);
+
+	if ($parent ne "top") {
+		if (defined($RESULT{"expanded"}{$domain}{"warnings"})) {
+			foreach my $w (@{$RESULT{"expanded"}{$domain}{"warnings"}}) {
+				$RESULT{"state"}{$parent}{"warnings"}{$w} = 1;
+			}
+			my @warnings= keys(%{$RESULT{"state"}{$parent}{"warnings"}});
+			$RESULT{"expanded"}{$parent}{"warnings"} = \@warnings;
 		}
-		if (defined($RESULT{"expanded"}{$dom}{"errors"})) {
-			push(@errors, @{$RESULT{"expanded"}{$dom}{"errors"}});
+
+		# If an invalid included policy encounters an error, it returns an error
+		if ($RESULT{"expanded"}{$domain}{"valid"} eq "invalid") {
+			$RESULT{"expanded"}{$parent}{"valid"} = "invalid";
+			if (defined($RESULT{"expanded"}{$domain}{"errors"})) {
+				foreach my $e (@{$RESULT{"expanded"}{$domain}{"errors"}}) {
+					$RESULT{"state"}{$parent}{"errors"}{$e} = 1;
+				}
+			}
+			my @errors = keys(%{$RESULT{"state"}{$parent}{"errors"}});
 			$RESULT{"expanded"}{$parent}{"errors"} = \@errors;
-		}
 		# ...but we still want to count results, so we continue.
-	}
-
-	if (!defined($RESULT{"expanded"}{$parent}{$q}{"count"})) {
-		return;
-	}
-
-	# Only explicit "pass" from the domain are added.
-	my %count = %{$RESULT{"expanded"}{$parent}{$q}{"count"}};
-
-	if (!defined($RESULT{"expanded"}{$dom}{"pass"}{"count"})) {
-		# No "pass", so nothing to add.
-		return;
-	}
-
-	my %childCount = %{$RESULT{"expanded"}{$dom}{"pass"}{"count"}};
-
-	foreach my $which (qw/exists exp include ip4count ip4cidrs ip6count ip6cidrs/) {
-		if (defined($childCount{$which})) {
-			$count{$which} += $childCount{$which};
 		}
+
+		# Only explicit "pass" from the included domain are added.
+		if (!defined($RESULT{"expanded"}{$domain}{"pass"}{"count"})) {
+			# No "pass", so nothing to add.
+			return;
+		}
+	} else {
+		$parent = $domain;
+	}
+
+	my (%count, %total);
+	if (defined($RESULT{"expanded"}{$parent}{$q}{"total"})) {
+		%total = %{$RESULT{"expanded"}{$parent}{$q}{"total"}};
+	}
+
+	if (!defined($RESULT{"expanded"}{$domain}{$q}{"count"})) {
+		return;
+	}
+
+	my %child = %{$RESULT{"expanded"}{$domain}{$q}};
+	my %childCount = %{$child{"count"}};
+
+	foreach my $which (qw/exists exp include ip4 ip6/) {
+		$total{$which} = mergeArrays($child{$which}, $total{$which});
+		if (defined($child{"total"})) {
+			$total{$which} = mergeArrays($child{"total"}{$which}, $total{$which});
+		}
+	}
+
+	foreach my $which (qw/a mx/) {
+		foreach my $sub (qw/cidrs directives ips names/) {
+			if (!defined($childCount{$which}{$sub})) {
+				next;
+			}
+			$total{"${which}-${sub}"} = mergeArrays($child{$which}{$sub}, $total{"${which}-${sub}"});
+			if (defined($child{"total"})) {
+				$total{"${which}-${sub}"} = mergeArrays($child{"total"}{"${which}-${sub}"}, $total{$which});
+			}
+		}
+	}
+
+	$RESULT{"expanded"}{$parent}{$q}{"total"} = \%total;
+
+	if (defined($child{"cidrs"})) {
+		my $new = $child{"cidrs"};
+		my $old = $RESULT{"expanded"}{$parent}{$q}{"cidrs"};
+		$RESULT{"expanded"}{$parent}{$q}{"cidrs"} = mergeArrays($new, $old);
+	}
+
+	if ($parent eq "top") {
+		$parent = $domain;
+	}
+	addTopCountsByQualifier($parent);
+}
+
+sub createCount($$) {
+	my ($domain, $q) = @_;
+
+	if (!defined($RESULT{"expanded"}{$domain}{$q})) {
+		return;
+	}
+
+	verbose("Creating counts for '$domain' ($q)...", 2);
+
+	my %info = %{$RESULT{"expanded"}{$domain}{$q}};
+	my %count;
+	foreach my $which (qw/exists exp include ip4 ip6/) {
+		if (!defined($info{$which})) {
+			next;
+		}
+		my @a = @{$info{$which}};
+		$count{$which} = scalar(@a);
 	}
 	foreach my $which (qw/a mx/) {
-		if (defined($childCount{"${which}-names"})) {
-			$count{"${which}-names"} += $childCount{"${which}-names"};
+		foreach my $sub (qw/cidrs directives ips names/) {
+			if (!defined($info{$which}{$sub})) {
+				next;
+			}
+			my @a = @{$info{$which}{$sub}};
+			$count{"${which}-${sub}"} = scalar(@a);
 		}
 	}
-	$RESULT{"expanded"}{$parent}{$q}{"count"} = \%count;
+
+	$RESULT{"expanded"}{$domain}{$q}{"count"} = \%count;
+}
+
+sub countIPs($$) {
+	my ($domain, $q) = @_;
+
+	verbose("Counting IPs for '$domain' ($q)...", 3);
+
+	if (!defined($RESULT{"expanded"}{$domain}{$q})) {
+		return;
+	}
+
+	my %data = %{$RESULT{"expanded"}{$domain}{$q}};
+
+	my %cidrs;
+	foreach my $which (qw/a mx/) {
+		if (defined($data{$which}{"ips"})) {
+			foreach my $ip (@{$data{$which}{"ips"}}) {
+				if ($ip =~ m/:/) {
+					$cidrs{"${ip}/128"} = 1;
+				} else {
+					$cidrs{"${ip}/32"} = 1;
+				}
+			}
+		}
+		if (defined($data{$which}{"cidrs"})) {
+			foreach my $c (@{$data{$which}{"ips"}}) {
+				$cidrs{$c} = 1;
+			}
+		}
+	}
+
+	foreach my $ipv (qw/ip4 ip6/) {
+		if (defined($data{$ipv})) {
+			foreach my $c (@{$data{$ipv}}) {
+				$cidrs{$c} = 1;
+			}
+		}
+	}
+
+	foreach my $c (@{$data{"cidrs"}}) {
+		$cidrs{$c} = 1;
+	}
+
+	my $href = dedupeCIDRs(\%cidrs);
+	my @uniqueCIDRs = keys(%{$href});
+	$data{"cidrs"} = \@uniqueCIDRs;
+
+	my $prevCIDRCount = 0;
+	if (defined($RESULT{"state"}{"countIPs"}{$domain}{$q})) {
+		$prevCIDRCount = $RESULT{"state"}{"countIPs"}{$domain}{$q};
+	}
+
+	if (scalar(@uniqueCIDRs) <= $prevCIDRCount) {
+		return;
+	}
+
+	$data{"count"}{"ip6count"} = 0;
+	$data{"count"}{"ip4count"} = 0;
+	foreach my $c (@uniqueCIDRs) {
+		my $count = getCIDRCount($c);
+		if ($count < 0) {
+			spfError("Invalid CIDR '$c' for domain '$domain' found.", $domain);
+			next;
+		}
+
+		if ($c =~ m/:/) {
+			$data{"count"}{"ip6count"} += $count;
+		} else {
+			$data{"count"}{"ip4count"} += $count;
+		}
+	}
+
+	if ($domain eq $RESULT{"query"}) {
+		foreach my $ipv (qw/ip4 ip6/) {
+			$RESULT{"expanded"}{$domain}{$q}{"total"}{"${ipv}count"} = $data{"count"}{"${ipv}count"};
+		}
+	}
+
+	$RESULT{"expanded"}{$domain}{$q} = \%data;
+	$RESULT{"state"}{"countIPs"}{$domain}{$q} = scalar(@uniqueCIDRs);
+}
+
+
+sub dedupeCIDRs($) {
+	my ($href) = @_;
+
+	my (%blocks, %allblocks);
+	my %cidrs = %{$href};
+
+	foreach my $v (qw/v4 v6/) {
+		my @which = grep(!/:/, keys(%cidrs));
+		if ($v eq "v6")  {
+			@which = grep(/:/, keys(%cidrs));
+		}
+		foreach my $c (@which) {
+			my $b = Net::Netmask->new2($c);
+			if (!$b) {
+				next;
+			}
+			push(@{$allblocks{$v}}, $b);
+		}
+
+		my @b = cidrs2cidrs(@{$allblocks{$v}});
+		foreach my $b (@b) {
+			$blocks{$b} = 1;
+		}
+	}
+
+	return \%blocks;
 }
 
 sub error($;$) {
@@ -249,29 +422,40 @@ sub error($;$) {
 	}
 }
 
-# XXX: verify individual IPs are not in other subnets? Seems expensive...
 sub expandAorMX($$$$$$) {
 	my ($res, $domain, $q, $which, $sep, $spec) = @_;
 
+	my $top = $RESULT{"query"};
+
 	verbose("Expanding $which for domain '$domain'...", 2);
-	$RESULT{"expanded"}{$domain}{$q}{"count"}{"${which}-names"}++;
+	$RESULT{"expanded"}{$domain}{$q}{"count"}{"${which}-directives"}++;
+	$RESULT{"expanded"}{$top}{$q}{"total"}{"${which}-directives"}++;
+
+	my (%directives, %result, %names, %ipaddrs);
+
+	if (defined($RESULT{"expanded"}{$domain}{$q}{$which})) {
+       		%result = %{$RESULT{"expanded"}{$domain}{$q}{$which}};
+		%names = map { $_ => 1 } @{$result{"names"}};
+		%directives = map { $_ => 1 } @{$result{"directives"}};
+
+		if ($result{"ips"}) {
+			%ipaddrs = map { $_ => 1 } @{$result{"ips"}};
+		}
+	}
+
+	my $d = $which;
+	if ($sep) {
+		$d .= "${sep}${spec}";
+	}
+	$directives{$d} = 1;
+	my @dirs = keys(%directives);
+	$RESULT{"expanded"}{$domain}{$q}{$which}{"directives"} = \@dirs;
 
 	my $cidr = "";
 	my ($v4cidr, $v6cidr);
 	($spec, $v4cidr, $v6cidr) = parseAMX($domain, $sep, $spec);
 	if (!$spec) {
 		return FALSE;
-	}
-
-	my (%result, %names, %ipaddrs);
-
-	if (defined($RESULT{"expanded"}{$domain}{$q}{$which})) {
-       		%result = %{$RESULT{"expanded"}{$domain}{$q}{$which}};
-		%names = map { $_ => 1 } @{$result{"names"}};
-
-		if ($result{"ips"}) {
-			%ipaddrs = map { $_ => 1 } @{$result{"ips"}};
-		}
 	}
 
 	if ($spec =~ m/%/) {
@@ -315,19 +499,21 @@ sub expandAorMX($$$$$$) {
 	$RESULT{"expanded"}{$domain}{$q}{$which}{"names"} = \@names;
 
 	my @iparray = keys(%ipaddrs);
+	my ($old, $new);
+
 	if ($v4cidr || $v6cidr) {
-		my $cidrs = expandAMXCIDR($domain, $q, $which, \@iparray, $v4cidr, $v6cidr);
-		if (!$cidrs) {
+		$old = $RESULT{"expanded"}{$domain}{$q}{$which}{"cidrs"};
+		$new = expandAMXCIDR($domain, $q, $which, \@iparray, $v4cidr, $v6cidr);
+		if (!$new) {
 			return TRUE;
 		}
 
-		$RESULT{"expanded"}{$domain}{$q}{$which}{"cidrs"} = \@{$cidrs};
-		$RESULT{"expanded"}{$domain}{$q}{"count"}{"${which}-cidrs"} = scalar(@{$cidrs});
+		$new = mergeArrays($new, $old);
+		$RESULT{"expanded"}{$domain}{$q}{$which}{"cidrs"} = \@{$new};
 	} else {
-		$RESULT{"expanded"}{$domain}{$q}{$which}{"ips"} = \@iparray;
-		$RESULT{"expanded"}{$domain}{$q}{"count"}{"${which}-ips"} += scalar(@iparray);
-
-		addIPCounts($domain, $q, \@iparray);
+		$old = $RESULT{"expanded"}{$domain}{$q}{$which}{"ips"};
+		$new = mergeArrays(\@iparray, $old);
+		$RESULT{"expanded"}{$domain}{$q}{$which}{"ips"} = \@{$new};
 	}
 
 	return TRUE;
@@ -357,33 +543,23 @@ sub expandAMXCIDR($$$$$$) {
 		}
 	}
 
-	$RESULT{"expanded"}{$domain}{$q}{"count"}{"${which}-cidrs"} = scalar(@cidrs);
-	foreach my $c (@cidrs) {
-		my $count = getCidrCount($c, $domain);
-		if ($count < 0) {
-			spfError("Invalid $which mechanism '${which}/${cidr}' for domain '$domain' found.", $domain);
-			return undef;
-		}
-		if ($c =~ m/:/) {
-			$RESULT{"expanded"}{$domain}{$q}{"count"}{"ip6count"} += $count;
-		} else {
-			$RESULT{"expanded"}{$domain}{$q}{"count"}{"ip4count"} += $count;
-		}
-	}
-
 	return \@cidrs;
 }
 
 sub expandCIDR($$$$) {
-	my ($qualifier, $domain, $ipv, $cidr) = @_;
+	my ($q, $domain, $ipv, $cidr) = @_;
+
+	my $top = $RESULT{"query"};
+
+	$RESULT{"expanded"}{$top}{$q}{"total"}{"${ipv}-directives"}++;
+	$RESULT{"expanded"}{$domain}{$q}{"count"}{"${ipv}-directives"}++;
 
 	if (!$cidr) {
 		spfError("Invalid definition '$ipv:' for domain '$domain'.", $domain);
 		return;
 	}
 
-	verbose("Expanding CIDR $ipv:$cidr for domain '$domain'...", 2);
-	$RESULT{"expanded"}{$domain}{$qualifier}{"count"}{"${ipv}cidrs"}++;
+	verbose("Expanding CIDR $ipv:$cidr for domain '$domain'...", 3);
 
 	if ($cidr !~ m/\/[0-9]+$/) {
 		if (!inet_pton(PF_INET, $cidr) && !inet_pton(PF_INET6, $cidr)) {
@@ -397,37 +573,24 @@ sub expandCIDR($$$$) {
 		}
 	}
 
-	my $count = getCidrCount($cidr, $domain);
-	if ($count < 0) {
-		spfError("Invalid CIDR '$cidr' for domain '$domain' found.", $domain);
-		return;
-	}
-
 	my (%c, @cidrs);
-	if (defined($RESULT{"expanded"}{$domain}{$qualifier}{"cidrs"}{$ipv})) {
-       		@cidrs = @{$RESULT{"expanded"}{$domain}{$qualifier}{"cidrs"}{$ipv}};
+	if (defined($RESULT{"expanded"}{$domain}{$q}{$ipv})) {
+       		@cidrs = @{$RESULT{"expanded"}{$domain}{$q}{$ipv}};
 		%c = map { $_ => 1 } @cidrs;
 	}
 
 	$c{$cidr} = 1;
 	@cidrs = keys(%c);
-       	$RESULT{"expanded"}{$domain}{$qualifier}{"cidrs"}{$ipv} = \@cidrs;
+       	$RESULT{"expanded"}{$domain}{$q}{$ipv} = \@cidrs;
 
-	my $s = $count;
-	if (defined($RESULT{"expanded"}{$domain}{$qualifier}{"count"}{"${ipv}count"})) {
-		$s += $RESULT{"expanded"}{$domain}{$qualifier}{"count"}{"${ipv}count"};
-	}
-
-	if ($s > 0) {
-		$RESULT{"expanded"}{$domain}{$qualifier}{"count"}{"${ipv}count"} = $s;
-	}
+	my $old = $RESULT{"expanded"}{$domain}{$q}{"cidrs"};
+	$RESULT{"expanded"}{$domain}{$q}{"cidrs"} = mergeArrays(\@cidrs, $old);
 }
 
 sub expandGeneric($$$$) {
 	my ($which, $domain, $qualifier, $dest) = @_;
 
 	verbose("Expanding '$which' for domain '$domain'...", 2);
-	$RESULT{"expanded"}{$domain}{$qualifier}{"count"}{$which}++;
 
 	my (@list, %hash);
 	if (defined($RESULT{"expanded"}{$domain}{$qualifier}{$which})) {
@@ -444,7 +607,14 @@ sub expandGeneric($$$$) {
 sub expandSPF($$$$);
 sub expandSPF($$$$) {
 	my ($res, $qualifier, $domain, $parent) = @_;
-	verbose("Expanding SPF for '$domain' ($qualifier)...", 1);
+
+	my $msg = "Expanding SPF for '$domain' ($qualifier) ";
+	if ($parent ne "top") {
+		$msg .= "under '$parent'";
+	}
+	verbose("$msg...", 1);
+
+	my $top = $RESULT{"query"};
 
 	my %parents;
 	if (defined($RESULT{"expanded"}{$domain}{"parents"})) {
@@ -457,6 +627,8 @@ sub expandSPF($$$$) {
 			return;
 		}
 	}
+
+	$RESULT{"expanded"}{$domain}{"valid"} = "valid";
 
 	$parents{$domain} = 1;
 	my @a = keys(%parents);
@@ -473,12 +645,17 @@ sub expandSPF($$$$) {
 	if (!$spfText) {
 		if ($domain eq "none") {
 			error("Invalid policy given: '" . $OPTS{'p'} . "'", EXIT_FAILURE);
+		} elsif ($domain !~ m/%/) {
+			# You can have a "include:<domain>" with macros;
+			# those are valid, but 'getSPFText' would have returned
+			# an empty string, so we need to check for this case here
+			# and only mark as invalid domains that don't contain
+			# macros.
+			$RESULT{"expanded"}{$domain}{"valid"} = "invalid";
 		}
-		$RESULT{"expanded"}{$domain}{"valid"} = "invalid";
 		return;
 	}
 
-	$RESULT{"expanded"}{$domain}{"valid"} = "valid";
 	$RESULT{"expanded"}{$domain}{"spf"} = $spfText;
 	$RESULT{"expanded"}{$domain}{"all"} = "neutral (implicit)";
 
@@ -526,25 +703,26 @@ sub expandSPF($$$$) {
 				$q = getQualifier($1);
 			}
 			my $type = $2;
-			my $dom = $3;
+			my $includedDomain = $3;
 			chop($type);
 
 			if ($type eq "include") {
-				$RESULT{"expanded"}{$domain}{$q}{"count"}{$type}++;
-				push(@{$RESULT{"expanded"}{$domain}{$q}{$type}}, $dom);
+				push(@{$RESULT{"expanded"}{$domain}{$q}{$type}}, $includedDomain);
 			} else {
 				if ($spfText =~ m/\b[+?~-]?all\b/) {
-					spfError("Ignored 'redirect=$dom' in '$domain' policy with 'all' statement", $domain, "warn");
+					spfError("Ignored 'redirect=$includedDomain' in '$domain' policy with 'all' statement", $domain, "warn");
 					next;
 				}
-				$RESULT{"expanded"}{$domain}{"redirect"} = $dom;
+				$RESULT{"expanded"}{$domain}{"redirect"} = $includedDomain;
 			}
 
-			expandSPF($res, $q, $dom, $domain);
-			addTotals($domain, $q, $dom);
+			$RESULT{"expanded"}{$domain}{$q}{"count"}{"${type}-directives"}++;
+			$RESULT{"expanded"}{$top}{$q}{"total"}{"${type}-directives"}++;
+			expandSPF($res, $q, $includedDomain, $domain);
+			addTotalsFromDomainToParent($includedDomain, $qualifier, $domain);
 
 			if ($type eq "redirect") {
-				$RESULT{"expanded"}{$domain}{"all"} = $RESULT{"expanded"}{$dom}{"all"};
+				$RESULT{"expanded"}{$domain}{"all"} = $RESULT{"expanded"}{$includedDomain}{"all"};
 			}
 
 		}
@@ -555,6 +733,8 @@ sub expandSPF($$$$) {
 			my $type = $2;
 			chop($type);
 
+			$RESULT{"expanded"}{$domain}{$q}{"count"}{"${type}-directives"}++;
+			$RESULT{"expanded"}{$top}{$q}{"total"}{"${type}-directives"}++;
 			# Both exists and ptr have a lookup...
 			if ($type ne "exp") {
 				incrementLookups($type, $3);
@@ -574,27 +754,38 @@ sub expandSPF($$$$) {
 
 	if (defined($RESULT{"expanded"}{$domain}{"errors"})) {
 		if ($domain eq "none") {
-			error("Invalid policy given: '" . $OPTS{'p'} . "'", EXIT_FAILURE);
+			my $msg = "  " . join("\n  ", @{$RESULT{"expanded"}{$domain}{"errors"}});
+			error("Invalid policy given: '" . $OPTS{'p'} . "':\n$msg", EXIT_FAILURE);
 		}
 
 		$RESULT{"expanded"}{$domain}{"valid"} = "invalid";
 	}
+
+	foreach my $q (qw/pass neutral softfail fail/) {
+		createCount($domain, $q);
+	}
 }
 
+sub getCIDRCount($) {
+	my ($cidr) = @_;
 
-sub getCidrCount($$) {
-	my ($cidr, $domain) = @_;
+	if (defined($RESULT{"state"}{"cidrs"}{$cidr})) {
+		return $RESULT{"state"}{"cidrs"}{$cidr};
+	}
 
+	my $size = 0;
 	# Net::Netmask doesn't handle IPv4-mapped addresses.
 	if ($cidr =~ m/::ffff:[0-9.]+(\/([0-9]+))/) {
 		my $nm = $2;
 		if (!$nm) {
 			# Assume /128
-			return 1;
+			$size = 1;
 		} else {
 			my $n = 128 - $nm;
-			return (2**$n);
+			$size = (2**$n);
 		}
+		$RESULT{"state"}{"cidrs"}{$cidr} = $size;
+		return $size;
 	}
 
 	my $block = Net::Netmask->new2(lc($cidr));
@@ -602,12 +793,13 @@ sub getCidrCount($$) {
 		return -1;
 	}
 
-	my $count = $block->size();
+	$size = $block->size();
 	if ($cidr =~ m/:/) {
-		$count = $count->numify();
+		$size = $size->numify();
 	}
 
-	return $count;
+	$RESULT{"state"}{"cidrs"}{$cidr} = $size;
+	return $size;
 }
 
 sub getIPs($$) {
@@ -660,14 +852,14 @@ sub getSPFText($$) {
 
 	verbose("Looking up SPF records for domain '$domain'...", 1);
 
+	incrementLookups("txt", $domain);
+
 	if ($domain =~ m/%/) {
 		# RFC7208, Section 7 allows for macros;
 		# we can't resolve those, so don't bother trying
 		verbose("Ignoring '$domain' - macro expansion required.", 2);
 		return;
 	}
-
-	incrementLookups("txt", $domain);
 
 	my $req = $res->send($domain, "TXT");
 	if (!defined($req)) {
@@ -722,10 +914,25 @@ sub getSPFText($$) {
 	return $spf;
 }
 
+sub getTotalCIDRCount($) {
+	my ($aref) = @_;
+	my $count = 0;
+
+	my %cidrs = map { $_ => 1 } @{$aref};
+
+	my $href = dedupeCIDRs(\%cidrs);
+	my @uniqueCIDRs = keys(%{$href});
+
+	foreach my $c (@uniqueCIDRs) {
+		$count += getCIDRCount($c);
+	}
+	return $count;
+}
+
 sub incrementLookups($$) {
 	my ($rr, $d) = @_;
 
-	verbose("DNS lookup of type '$rr' for $d...", 3);
+	verbose("DNS lookup of type '$rr' for $d...", 2);
 
 	$RESULT{"lookups"}++;
 }
@@ -791,6 +998,10 @@ sub main() {
 
 	my $res = Net::DNS::Resolver->new(%resolver_opts);
 	expandSPF($res, "pass", $domain, "top");
+	foreach my $q (qw/pass neutral softfail fail/) {
+		addTotalsFromDomainToParent($domain, $q, "top");
+		countIPs($domain, $q);
+	}
 
 	my $n = $RESULT{"lookups"};
 	if ($n > MAXLOOKUPS) {
@@ -812,6 +1023,13 @@ sub matchSPF($$) {
 	}
 
 	return $spf;
+}
+
+sub mergeArrays($$) {
+	my ($new, $old) = @_;
+	my %h = map { $_ => 1 } (@{$old}, @{$new});
+	my @keys = keys(%h);
+	return \@keys;
 }
 
 sub parseAMX($$$) {
@@ -943,27 +1161,23 @@ sub printExpanded($$) {
 			printArray($i, $info{$i}, $indent);
 		}
 
-		if (defined($info{"cidrs"})) {
-			my %cidrs = %{$info{"cidrs"}};
-			foreach my $ipv (qw/ip4 ip6/) {
-				if (defined($cidrs{$ipv})) {
-					my @cidrs = @{$cidrs{$ipv}};
-					my $cnum = scalar(@cidrs);
-					my $inum = $info{"count"}{"${ipv}count"};
-					printf("%s%s (%s CIDR%s / %s IP%s):\n",
-							$space, $ipv, $cnum,
-							$cnum > 1 ? "s" : "",
-							$inum,
-							$inum > 1 ? "s" : "");
+		foreach my $ipv (qw/ip4 ip6/) {
+			if (!defined($info{$ipv})) {
+				next;
+			}
+			my @cidrs = @{$info{$ipv}};
+			my $cnum = scalar(@cidrs);
+			my $inum = getTotalCIDRCount(\@cidrs);
+			printf("%s%s (%s CIDR%s / %s IP%s):\n",
+						$space, $ipv, $cnum,
+						$cnum > 1 ? "s" : "",
+						$inum,
+						$inum > 1 ? "s" : "");
 
-					# Yes, sort() isn't quite right for CIDRs,
-					# but good enough.
-					print "$space  " . join("\n$space  ", 
-							sort(@cidrs)) . "\n";
-					if (($ipv eq "ip4") && (defined($cidrs{"ip6"}))) {
-						print "\n";
-					}
-				}
+			# Yes, sort() isn't quite right for CIDRs, but good enough.
+			print "$space  " . join("\n$space  ",  sort(@cidrs)) . "\n";
+			if (($ipv eq "ip4") && (defined($info{"ip6"}))) {
+				print "\n";
 			}
 			print "\n";
 		}
@@ -974,10 +1188,11 @@ sub printExpanded($$) {
 				my ($nnum, $inum, $cnum) = (0, 0, 0);
 
 				%h = %{$info{$m}};
-				@n = @{$h{"names"}};
-				$nnum = scalar(@n);
-				printAMXStat($space, $m, "name", \@n);
-
+				if (defined($h{"names"})) {
+					@n = @{$h{"names"}};
+					$nnum = scalar(@n);
+					printAMXStat($space, $m, "name", \@n);
+				}
 				if (defined($h{"ips"})) {
 					@i = @{$h{"ips"}};
 					$inum = scalar(@i);
@@ -1003,8 +1218,8 @@ sub printExpanded($$) {
 	print "All others: " . $RESULT{"expanded"}{$domain}{"all"} . "\n";
 }
 
-sub printCount($$) {
-	my ($href, $indent) = @_;
+sub printCount($$$) {
+	my ($href, $domain, $q) = @_;
 
 	if (!defined($href)) {
 		return;
@@ -1012,31 +1227,22 @@ sub printCount($$) {
 
 	my %stats = %{$href};
 
-	foreach my $s (qw/exists exp include ptr redirect/) {
-		if (defined($stats{$s})) {
-			print "  " x ($indent + 1);
-			printf("Total # of %s directives%s: ", $s, " " x (length("redirect") - length($s)));
-			print $stats{$s} . "\n";
+	foreach my $s (qw/a exists exp include mx ptr redirect/) {
+		if (defined($stats{"${s}-directives"})) {
+			print "    ";
+			printf("Total # of '%s' directives%s: ", $s, " " x (length("redirect") - length($s)));
+			print $stats{"${s}-directives"} . "\n";
 		}
 	}
-
-	foreach my $s (qw/a mx/) {
-		if (defined($stats{"${s}-names"})) {
-			print "  " x ($indent + 1);
-			printf("Total # of %s directives%s: ", $s, " " x (length("redirect") - length($s)));
-			print $stats{"${s}-names"} . "\n";
-		}
-	}
-
 	foreach my $ipv (qw/ip4 ip6/) {
-		if (defined($stats{"${ipv}cidrs"})) {
-			print "  " x ($indent + 1);
-			print "Total # of $ipv CIDRs          : ";
-			print $stats{"${ipv}cidrs"} . "\n";
+		if ($stats{"${ipv}-directives"}) {
+			print "    ";
+			print "Total # of $ipv directives       : ";
+			print $stats{"${ipv}-directives"} . "\n";
 		}
-		if (defined($stats{"${ipv}count"})) {
-			print "  " x ($indent + 1);
-			print "Total # of $ipv addresses      : ";
+		if ($stats{"${ipv}count"}) {
+			print "    ";
+			print "Total # of $ipv addresses        : ";
 			print $stats{"${ipv}count"} . "\n";
 		}
 	}
@@ -1051,8 +1257,6 @@ sub printResults() {
 		return;
 	}
 
-	addTopCountsByQualifier($domain);
-
 	printExpanded($domain, 1);
 
 	print "\n";
@@ -1065,20 +1269,22 @@ sub printResults() {
 	printWarningsAndErrors(0, $domain);
 
 	print "Total counts:\n";
-	print "  Total number of DNS lookups     : " . $RESULT{"lookups"} . "\n\n";
+	if ($RESULT{"lookups"} > 0) {
+		print "  Total # of DNS lookups            : " . $RESULT{"lookups"} . "\n\n";
+	}
 
-	foreach my $qual (qw/pass neutral softfail fail/) {
-		if (!defined($RESULT{"total"}{$qual})) {
+	foreach my $q (qw/pass neutral softfail fail/) {
+		if (!defined($RESULT{"expanded"}{$domain}{$q}{"total"})) {
 			next;
 		}
 
-		my %stats = %{$RESULT{"total"}{$qual}};
+		my %stats = %{$RESULT{"expanded"}{$domain}{$q}{"total"}};
 		if (!scalar(keys(%stats)) > 0) {
 			next;
 		}
 
-		print "  $qual:\n";
-		printCount(\%stats, 1);
+		print "  $q:\n";
+		printCount(\%stats, $domain, $q);
 	}
 	print "All others: " . $RESULT{"expanded"}{$domain}{"all"} . "\n";
 }
@@ -1100,10 +1306,14 @@ sub spfError($$;$) {
 	my ($msg, $domain, $warn) = @_;
 
 	if (!$warn) {
-		push(@{$RESULT{"expanded"}{$domain}{"errors"}}, $msg);
+		$RESULT{"state"}{$domain}{"errors"}{$msg} = 1;
+		my @errors = keys(%{$RESULT{"state"}{$domain}{"errors"}});
+		$RESULT{"expanded"}{$domain}{"errors"} = \@errors;
 		$RESULT{"expanded"}{$domain}{"valid"} = "invalid";
 	} else {
-		push(@{$RESULT{"expanded"}{$domain}{"warnings"}}, $msg);
+		$RESULT{"state"}{$domain}{"warnings"}{$msg} = 1;
+		my @warnings= keys(%{$RESULT{"state"}{$domain}{"warnings"}});
+		$RESULT{"expanded"}{$domain}{"warnings"} = \@warnings;
 	}
 }
 
@@ -1160,6 +1370,7 @@ main();
 
 if ($OPTS{'j'}) {
 	my $json = JSON->new;
+	delete($RESULT{"state"});
 	print $json->pretty->encode(\%RESULT);
 } else {
 	printResults();

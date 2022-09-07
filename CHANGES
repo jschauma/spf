@@ -1,5 +1,6 @@
-
+0.3 (2022-09-06)
 * add '-p' option to pass a policy to expand
+* more accurately count IPs from CIDRs and other expansions
 
 0.2 (2022-08-31)
 * match "a:domain/v4cidr//v6dir" correctly
