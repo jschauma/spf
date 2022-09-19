@@ -13,6 +13,57 @@ For a longer discussion of SPF, please see this blog
 post:
 https://www.netmeister.org/blog/spf.html
 
+Sample output of the tool (trimmed for brevity):
+
+```
+$ spf github.com
+github.com:
+  policy:
+    ip4:192.30.252.0/22 include:_netblocks.google.com include:_netblocks2.google.com include:_netblocks3.google.com include:spf.protection.outlook.com include:mail.zendesk.com include:_spf.salesforce.com include:servers.mcsv.net ip4:166.78.69.169 ip4:166.78.69.170 ip4:166.78.71.131 ip4:167.89.101.2 ip4:167.89.101.192/28 ip4:192.254.112.60 ip4:192.254.112.98/31 ip4:192.254.113.10 ip4:192.254.113.101 ip4:192.254.114.176 ip4:62.253.227.114 ~all
+
+  valid
+
+  pass:
+    include (7 domains):
+      _netblocks.google.com
+      _netblocks2.google.com
+      _netblocks3.google.com
+      _spf.salesforce.com
+[...]
+
+    ip4 (12 CIDRs / 1051 IPs):
+      166.78.69.169/32
+      166.78.69.170/32
+      166.78.71.131/32
+[...]
+
+    _netblocks.google.com:
+      policy:
+        ip4:35.190.247.0/24 ip4:64.233.160.0/19 ip4:66.102.0.0/20 ip4:66.249.80.0/20 ip4:72.14.192.0/18 ip4:74.125.0.0/16 ip4:108.177.8.0/21 ip4:173.194.0.0/16 ip4:209.85.128.0/17 ip4:216.58.192.0/19 ip4:216.239.32.0/19 ~all
+
+      valid
+
+      pass:
+        ip4 (11 CIDRs / 215296 IPs):
+          108.177.8.0/21
+          173.194.0.0/16
+[...]
+SPF record for domain 'github.com': valid
+
+Total counts:
+  Total # of DNS lookups            : 9
+
+  pass:
+    Total # of 'exists' directives  : 1
+    Total # of 'include' directives : 8
+    Total # of ip4 directives       : 50
+    Total # of ip4 addresses        : 870748
+    Total # of ip6 directives       : 15
+    Total # of ip6 addresses        : 2.97129033104116e+28
+
+All others: softfail
+```
+
 Requirements
 ============
 
