@@ -43,7 +43,7 @@ use constant MAXLENGTH => 450;
 my %OPTS = ( v => 0 );
 my $PROGNAME = basename($0);
 my $RETVAL = 0;
-my $VERSION = 0.3;
+my $VERSION = 0.4;
 
 # The final result in json representation:
 # {
@@ -882,11 +882,15 @@ sub getSPFText($$) {
 
 	my $spf;
 	foreach my $rr ($req->answer) {
+
+		# e.g., CNAME
+		if ($rr->type ne 'TXT') {
+			next;
+		}
 		my $tmp;
-		my $s = $rr->rdstring;
+		my $s = join("", $rr->txtdata);
 		$s =~ s/"//g;
 		$s =~ s/[	\n"]//gi;
-
 		$tmp = matchSPF($s, $domain);
 
 		if ($tmp) {

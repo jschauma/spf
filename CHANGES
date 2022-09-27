@@ -1,3 +1,6 @@
+0.4 (2022-09-27)
+* switch to using $rr->txtdata to accommodate older versions of Net::DNS
+
 0.3 (2022-09-06)
 * add '-p' option to pass a policy to expand
 * more accurately count IPs from CIDRs and other expansions
