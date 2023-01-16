@@ -43,7 +43,7 @@ use constant MAXLENGTH => 450;
 my %OPTS = ( v => 0 );
 my $PROGNAME = basename($0);
 my $RETVAL = 0;
-my $VERSION = 0.4;
+my $VERSION = 0.5;
 
 # The final result in json representation:
 # {
@@ -465,7 +465,7 @@ sub expandAorMX($$$$$$) {
 	} else {
 		if ($which eq "a") {
 			$names{$spec} = 1;
-			foreach my $ip (getIPs($res, $spec)) {
+			foreach my $ip (getIPs($res, $spec, $which)) {
 				$ipaddrs{$ip} = 1;
 			}
 
@@ -488,7 +488,7 @@ sub expandAorMX($$$$$$) {
 			foreach my $rr (@mxs) {
 				my $mx = $rr->exchange;
 				$names{$mx} = 1;
-				foreach my $ip (getIPs($res, $mx)) {
+				foreach my $ip (getIPs($res, $mx, $which)) {
 					$ipaddrs{$ip} = 1;
 				}
 			}
@@ -802,8 +802,8 @@ sub getCIDRCount($) {
 	return $size;
 }
 
-sub getIPs($$) {
-	my ($res, $domain) = @_;
+sub getIPs($$$) {
+	my ($res, $domain, $parent) = @_;
 
 	verbose("Looking up all IPs for '$domain'...", 3);
 
@@ -814,7 +814,13 @@ sub getIPs($$) {
 	# because when the mail server performs the lookup, it will only
 	# perform a single lookup based on whether the client connected over
 	# IPv4 or IPv6.
-	incrementLookups("a/aaaa", $domain);
+	#
+	# In addition, IP lookups for MX results are (counter-intuitively)
+	# _not_ counted.  See
+	# https://mailarchive.ietf.org/arch/msg/spfbis/AFvCBHV_QkaifWJpVaA6FCg_VT8/.
+	if ($parent ne "mx") {
+		incrementLookups("a/aaaa", $domain);
+	}
 
 	foreach my $a (qw/A AAAA/) {
 		$req = $res->send($domain, $a);
