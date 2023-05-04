@@ -15,7 +15,8 @@ Getopt::Long::Configure("bundling");
 
 use JSON;
 
-use Socket qw(PF_INET PF_INET6 inet_ntoa inet_pton);
+use Socket qw(PF_UNSPEC PF_INET PF_INET6 SOCK_STREAM inet_ntoa);
+use Socket6;
 
 use Net::DNS;
 use Net::Netmask;
@@ -43,7 +44,7 @@ use constant MAXLENGTH => 450;
 my %OPTS = ( v => 0 );
 my $PROGNAME = basename($0);
 my $RETVAL = 0;
-my $VERSION = 0.5;
+my $VERSION = 0.6;
 
 # The final result in json representation:
 # {
@@ -924,6 +925,34 @@ sub getSPFText($$) {
 	return $spf;
 }
 
+sub getResolver($) {
+	my ($r) = @_;
+	my @resolvers;
+
+	my $ip = inet_pton(PF_INET, $r);
+	my $ip6 = inet_pton(PF_INET6, $r);
+
+	if ($ip || $ip6) {
+		if ($r =~ m/(.*)/) {
+			push(@resolvers, $1);
+		}
+	} else {
+		my @res = getaddrinfo($r, 'domain', PF_UNSPEC, SOCK_STREAM);
+		while (scalar(@res) >= 5) {
+			my ($family, $addr);
+			($family, undef, undef, $addr, undef, @res) = @res;
+			my ($host, undef) = getnameinfo($addr, NI_NUMERICHOST | NI_NUMERICSERV);
+			# untaint
+			if ($host =~ m/(.*)/) {
+				push(@resolvers, $1);
+			}
+		}
+	}
+
+	return @resolvers;
+}
+
+
 sub getTotalCIDRCount($) {
 	my ($aref) = @_;
 	my $count = 0;
@@ -968,11 +997,6 @@ sub init() {
 			 		}
 			 );
 
-	# We can untaint the given resolver; this is GIGO.
-	if ($OPTS{'r'} && $OPTS{'r'} =~ m/(.*)/) {
-		$OPTS{'r'} = $1;
-	}
-
 	if ($OPTS{'h'} || !$ok) {
 		usage($ok);
 		exit(!$ok);
@@ -1003,7 +1027,8 @@ sub main() {
 	}
 
 	if ($OPTS{'r'}) {
-		$resolver_opts{'nameservers'} = [ $OPTS{'r'} ];
+		my @resolvers = getResolver($OPTS{'r'});
+		$resolver_opts{'nameservers'} = \@resolvers;
 	}
 
 	my $res = Net::DNS::Resolver->new(%resolver_opts);
@@ -1311,6 +1336,7 @@ sub printWarningsAndErrors($$) {
 	}
 	print "\n";
 }
+
 
 sub spfError($$;$) {
 	my ($msg, $domain, $warn) = @_;

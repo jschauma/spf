@@ -1,3 +1,6 @@
+0.6 (2023-05-04)
+* allow the user to specify resolvers by name
+
 0.5 (2023-01-16)
 * correct DNS lookup limit counting to not count
   lookups performed to turn MX results into IP
