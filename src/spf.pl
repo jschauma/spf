@@ -1387,7 +1387,7 @@ sub usage($) {
 	print $FH <<EOH
 Usage: $PROGNAME [-Vbhjv] [-f format] [-r address] -p policy | domain
         -V          print version information and exit
-        -b          support large numbers (bigint module)
+        -b          support large numbers
         -f format   output format (json, perl, text)
 	-h          print this help and exit
 	-j          same as "-f json"
