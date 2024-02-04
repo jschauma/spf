@@ -7,8 +7,9 @@
 .Nd report on the given domain's use of SPF
 .Sh SYNOPSIS
 .Nm
-.Op Fl Vhjv
+.Op Fl Vbhjv
 .Op Fl p Ar policy
+.Op Fl f Ar format
 .Op Fl r Ar address
 .Ar domain
 .Sh DESCRIPTION
@@ -22,10 +23,14 @@ The following options are supported by
 .Bl -tag -width r_address_
 .It Fl V
 Print version information and exit.
+.It Fl b
+Support large numbers.
+.It Fl f Ar format
+Output format (json, perl, text).
 .It Fl h
 Display help and exit.
 .It Fl j
-Generate output in json format.
+Same as "-f json".
 .It Fl p Ar policy
 Expand and report on the given policy.
 Note:
