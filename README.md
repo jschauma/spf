@@ -127,9 +127,9 @@ OPTIONS
 
      -V		 Print version information and exit.
 
-     -b          support large numbers
+     -b          support large numbers.
 
-     -f format   output format (json, perl, text)
+     -f format   output format (json, perl, text).
 
      -h		 Display help and exit.
 
