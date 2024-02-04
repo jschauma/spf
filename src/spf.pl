@@ -1,4 +1,4 @@
-#! /usr/local/bin/perl -Tw
+#! /usr/bin/perl -Tw
 #
 # This tool can expand and report on the given domains SPF use.
 # This is accomplished by (possibly recursive) inspection of the DNS
@@ -11,9 +11,7 @@ use 5.008;
 use strict;
 use File::Basename;
 use Getopt::Long;
-Getopt::Long::Configure("bundling");
-
-use JSON;
+    Getopt::Long::Configure("bundling");
 
 use Socket qw(PF_UNSPEC PF_INET PF_INET6 SOCK_STREAM inet_ntoa);
 use Socket6;
@@ -21,6 +19,10 @@ use Socket6;
 use Net::DNS;
 use Net::Netmask;
 
+# Notes:
+#    Data::Dumper is loaded dynamically by the "-f perl" option
+#    JSON is loaded dynamically by the "-f json" or "-j" option
+#    Math::BigInt is loaded dynamically by the "-b" option
 
 ###
 ### Constants
@@ -44,7 +46,7 @@ use constant MAXLENGTH => 450;
 my %OPTS = ( v => 0 );
 my $PROGNAME = basename($0);
 my $RETVAL = 0;
-my $VERSION = 0.6;
+my $VERSION = 0.7;
 
 # The final result in json representation:
 # {
@@ -356,8 +358,8 @@ sub countIPs($$) {
 		return;
 	}
 
-	$data{"count"}{"ip6count"} = 0;
-	$data{"count"}{"ip4count"} = 0;
+	$data{"count"}{"ip6count"} = $OPTS{'b'} ? Math::BigInt->bzero : 0;
+	$data{"count"}{"ip4count"} = $OPTS{'b'} ? Math::BigInt->bzero : 0;
 	foreach my $c (@uniqueCIDRs) {
 		my $count = getCIDRCount($c);
 		if ($count < 0) {
@@ -370,6 +372,12 @@ sub countIPs($$) {
 		} else {
 			$data{"count"}{"ip4count"} += $count;
 		}
+	}
+
+	# Convert total counts to strings so that JSON can use it
+	if ($OPTS{'b'}) {
+		$data{"count"}{"ip4count"} = $data{"count"}{"ip4count"}->bstr();
+		$data{"count"}{"ip6count"} = $data{"count"}{"ip6count"}->bstr();
 	}
 
 	if ($domain eq $RESULT{"query"}) {
@@ -774,16 +782,21 @@ sub getCIDRCount($) {
 		return $RESULT{"state"}{"cidrs"}{$cidr};
 	}
 
-	my $size = 0;
+	my $size = $OPTS{'b'} ? Math::BigInt->bzero() : 0;
 	# Net::Netmask doesn't handle IPv4-mapped addresses.
 	if ($cidr =~ m/::ffff:[0-9.]+(\/([0-9]+))/) {
-		my $nm = $2;
-		if (!$nm) {
+		my $netmask = $2;
+		if (!$netmask) {
 			# Assume /128
 			$size = 1;
 		} else {
-			my $n = 128 - $nm;
-			$size = (2**$n);
+			if ($OPTS{'b'}) {
+				my $n = Math::Size->new(128 - $netmask);
+				$size = $n->bpow(2);
+			} else {
+				my $n = 128 - $netmask;
+				$size = (2**$n);
+			}
 		}
 		$RESULT{"state"}{"cidrs"}{$cidr} = $size;
 		return $size;
@@ -796,7 +809,7 @@ sub getCIDRCount($) {
 
 	$size = $block->size();
 	if ($cidr =~ m/:/) {
-		$size = $size->numify();
+		$size = $OPTS{'b'} ? $size : $size->numify();
 	}
 
 	$RESULT{"state"}{"cidrs"}{$cidr} = $size;
@@ -897,7 +910,7 @@ sub getSPFText($$) {
 		my $tmp;
 		my $s = join("", $rr->txtdata);
 		$s =~ s/"//g;
-		$s =~ s/[	\n"]//gi;
+		$s =~ s/[\t\n"]//gi;
 		$tmp = matchSPF($s, $domain);
 
 		if ($tmp) {
@@ -955,7 +968,7 @@ sub getResolver($) {
 
 sub getTotalCIDRCount($) {
 	my ($aref) = @_;
-	my $count = 0;
+	my $count = $OPTS{'b'} ? Math::BigInt->bzero : 0;
 
 	my %cidrs = map { $_ => 1 } @{$aref};
 
@@ -984,10 +997,13 @@ sub init() {
 		# NOTREACHED
 	}
 
+	$OPTS{'f'} = 'text'; # Set default format to "text"
 	$ok = GetOptions(
 			 "expand|e" 	=> \$OPTS{'e'},
+			 "bigint|b" 	=> \$OPTS{'b'},
+			 "format|f=s" 	=> \$OPTS{'f'},
 			 "help|h" 	=> \$OPTS{'h'},
-			 "json|j" 	=> \$OPTS{'j'},
+			 "json|j" 	=> sub { $OPTS{'f'} = 'json'; },
 			 "policy|p=s"   => \$OPTS{'p'},
 			 "resolver|r=s"	=> \$OPTS{'r'},
 			 "verbose|v+" 	=> sub { $OPTS{'v'}++; },
@@ -1001,6 +1017,16 @@ sub init() {
 		usage($ok);
 		exit(!$ok);
 		# NOTREACHED
+	}
+
+	if ($OPTS{'b'}) {
+		use Math::BigInt;
+	}
+
+	if ($OPTS{'f'} eq 'json') {
+		use JSON;
+	} elsif ($OPTS{'f'} eq 'perl') {
+		use Data::Dumper;
 	}
 
 	if (((scalar(@ARGV) != 1) && (!$OPTS{'p'})) ||
@@ -1359,15 +1385,17 @@ sub usage($) {
 	my $FH = $err ? \*STDERR : \*STDOUT;
 
 	print $FH <<EOH
-Usage: $PROGNAME [-Vhjv] [-r address] -p policy | domain
+Usage: $PROGNAME [-Vbhjv] [-f format] [-r address] -p policy | domain
         -V          print version information and exit
+        -b          support large numbers (bigint module)
+        -f format   output format (json, perl, text)
 	-h          print this help and exit
-	-j          print output in json format
-	-p polіcy   expand the given policy
+	-j          same as "-f json"
+	-p policy   expand the given policy
 	-r address  explicitly query this resolver
 	-v          increase verbosity
 EOH
-	;
+        ;
 }
 
 sub verbose($;$) {
@@ -1404,15 +1432,17 @@ init();
 
 main();
 
-if ($OPTS{'j'}) {
+if ($OPTS{'f'} eq 'json') {
 	my $json = JSON->new;
 	delete($RESULT{"state"});
 	print $json->pretty->encode(\%RESULT);
-} else {
+} elsif ($OPTS{'f'} eq 'perl') {
+	delete($RESULT{"state"});
+	print Data::Dumper::Dumper \%RESULT;
+} elsif ($OPTS{'f'} eq 'text') {
 	printResults();
+} else {
+	print STDERR "$PROGNAME: Error: Unsupported format\n";
 }
-
-#use Data::Dumper;
-#print Data::Dumper::Dumper \%RESULT;
 
 exit($RETVAL);
