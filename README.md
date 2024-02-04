@@ -70,20 +70,25 @@ Requirements
 `spf(1)` is written in Perl, and you will need
 the following modules installed:
 
-* JSON
 * Net::DNS
 * Net::Netmask
+
+Optional modules:
+
+* Data::Dumper
+* JSON
+* Math::BigInt
 
 You may be able to install these dependencies via:
 
 * NetBSD and other systems using [pkgsrc](https://pkgsrc.org):
-`sudo pkg_add p5-JSON p5-Net-DNS p5-Net-Netmask`
+`sudo pkg_add p5-JSON p5-Net-DNS p5-Net-Netmask p5-Math-BigInt`
 or
-`sudo pkgin install p5-JSON p5-Net-DNS p5-Net-Netmask`
-* Debian and related systems:
-`sudo apt install libjson-perl libnet-dns-perl libnet-netmask-perl`
+`sudo pkgin install p5-JSON p5-Net-DNS p5-Net-Netmask p5-Math-BigInt`
+* Debian, Ubuntu, and related systems:
+`sudo apt install libjson-perl libnet-dns-perl libnet-netmask-perl libmath-bigint-perl`
 * FreeBSD:
-`sudo pkg install p5-JSON p5-Net-DNS p5-Net-Netmask`
+`sudo pkg install p5-JSON p5-Net-DNS p5-Net-Netmask p5-Math-BigInt`
 
 You can also find a
 [Dockerfile](https://github.com/jschauma/spf/blob/main/misc/Dockerfile)
@@ -111,7 +116,7 @@ NAME
      spf - report on the given domain's use of SPF
 
 SYNOPSIS
-     spf [-Vhjv] [-p policy] [-r address] domain
+     spf [-Vbhjv] [-f format] [-p policy] [-r address] domain
 
 DESCRIPTION
      The spf tool allows you to inspect the Sender Policy Framework DNS records
@@ -121,6 +126,10 @@ OPTIONS
      The following options are supported by spf:
 
      -V		 Print version information and exit.
+
+     -b          support large numbers
+
+     -f format   output format (json, perl, text)
 
      -h		 Display help and exit.
 
