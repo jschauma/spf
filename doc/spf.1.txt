@@ -62,7 +62,7 @@ SEE ALSO
 HISTORY
      spf was originally written by Jan Schaumann <jschauma@netmeister.org> in
      July 2022, with contributions by Royce Williams, Patrick Proniewski, and
-     Randolf Richardson.
+     Randolf Richardson <randolf@inter-corporate.com>.
 
 BUGS
      Please file bugs and feature requests by emailing the author.
