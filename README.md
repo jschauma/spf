@@ -29,6 +29,7 @@ github.com:
       _netblocks2.google.com
       _netblocks3.google.com
       _spf.salesforce.com
+      mail.zendesk.com
 [...]
 
     ip4 (12 CIDRs / 1051 IPs):
@@ -51,15 +52,15 @@ github.com:
 SPF record for domain 'github.com': valid
 
 Total counts:
-  Total # of DNS lookups            : 9
+  Total # of DNS lookups            : 8
 
   pass:
     Total # of 'exists' directives  : 1
-    Total # of 'include' directives : 8
-    Total # of ip4 directives       : 50
-    Total # of ip4 addresses        : 870748
-    Total # of ip6 directives       : 15
-    Total # of ip6 addresses        : 2.97129033104116e+28
+    Total # of 'include' directives : 7
+    Total # of ip4 directives       : 45
+    Total # of ip4 addresses        : 870171
+    Total # of ip6 directives       : 11
+    Total # of ip6 addresses        : 29712752120897178112958136320
 
 All others: softfail
 ```
@@ -70,20 +71,25 @@ Requirements
 `spf(1)` is written in Perl, and you will need
 the following modules installed:
 
-* JSON
 * Net::DNS
 * Net::Netmask
+* Math::BigInt
+
+Optional modules:
+
+* Data::Dumper
+* JSON
 
 You may be able to install these dependencies via:
 
 * NetBSD and other systems using [pkgsrc](https://pkgsrc.org):
-`sudo pkg_add p5-JSON p5-Net-DNS p5-Net-Netmask`
+`sudo pkg_add p5-JSON p5-Net-DNS p5-Net-Netmask p5-Math-BigInt`
 or
-`sudo pkgin install p5-JSON p5-Net-DNS p5-Net-Netmask`
-* Debian and related systems:
-`sudo apt install libjson-perl libnet-dns-perl libnet-netmask-perl`
+`sudo pkgin install p5-JSON p5-Net-DNS p5-Net-Netmask p5-Math-BigInt`
+* Debian, Ubuntu, and related systems:
+`sudo apt install libjson-perl libnet-dns-perl libnet-netmask-perl libmath-bigint-perl`
 * FreeBSD:
-`sudo pkg install p5-JSON p5-Net-DNS p5-Net-Netmask`
+`sudo pkg install p5-JSON p5-Net-DNS p5-Net-Netmask p5-Math-BigInt`
 
 You can also find a
 [Dockerfile](https://github.com/jschauma/spf/blob/main/misc/Dockerfile)
@@ -111,7 +117,7 @@ NAME
      spf - report on the given domain's use of SPF
 
 SYNOPSIS
-     spf [-Vhjv] [-p policy] [-r address] domain
+     spf [-Vhv] [-f format] [-p policy] [-r address] domain
 
 DESCRIPTION
      The spf tool allows you to inspect the Sender Policy Framework DNS records
@@ -122,9 +128,9 @@ OPTIONS
 
      -V		 Print version information and exit.
 
-     -h		 Display help and exit.
+     -f format   output format (json, perl, text).
 
-     -j		 Generate output in json format.
+     -h		 Display help and exit.
 
      -p policy	 Expand and report on the given policy.	 Note: policy needs to
 		 be quoted; see EXAMPLES.
@@ -168,7 +174,8 @@ SEE ALSO
 
 HISTORY
      spf was originally written by Jan Schaumann <jschauma@netmeister.org> in
-     July 2022.
+     July 2022, with contributions by Royce Williams, Patrick Proniewski, and
+     Randolf Richardson <randolf@inter-corporate.com>.
 
 BUGS
      Please file bugs and feature requests by emailing the author.

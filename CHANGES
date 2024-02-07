@@ -1,3 +1,13 @@
+0.7 (2024-02-06)
+* fixed a regular expression to use \t instead of a literal tab
+* changed variable named $nm to $netmask
+* added big integer support to show exact IP address counts
+* added option "-f" so that other output formats can easily be supported
+  with "-f json" (which replaces "-j") and set "-f text" as the default
+* added Perl source output format option "-b perl"
+* some modules will be loaded only when needed by relevant options
+* various minor cosmetic improvements
+
 0.6 (2023-05-04)
 * allow the user to specify resolvers by name
 
