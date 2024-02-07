@@ -1,5 +1,5 @@
 .\"
-.Dd August 09, 2022
+.Dd February 07, 2024
 .Dt spf 1
 .Os
 .Sh NAME
@@ -8,8 +8,8 @@
 .Sh SYNOPSIS
 .Nm
 .Op Fl Vbhjv
-.Op Fl p Ar policy
 .Op Fl f Ar format
+.Op Fl p Ar policy
 .Op Fl r Ar address
 .Ar domain
 .Sh DESCRIPTION
@@ -24,7 +24,7 @@ The following options are supported by
 .It Fl V
 Print version information and exit.
 .It Fl f Ar format
-Output format (json, perl, text).
+Output format (json, perl, text; default: text).
 .It Fl h
 Display help and exit.
 .It Fl p Ar policy
@@ -66,7 +66,7 @@ spf netmeister.org
 To query Quad9's public resolver for the same SPF
 records and report the results in json format:
 .Bd -literal -offset indent
-spf -r 2620:fe::fe -j netmeister.org
+spf -r 2620:fe::fe -f json netmeister.org
 .Ed
 .Pp
 To expand an arbitrary policy from the command-line:
