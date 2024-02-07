@@ -12,6 +12,7 @@ use strict;
 use File::Basename;
 use Getopt::Long;
     Getopt::Long::Configure("bundling");
+use Math::BigInt; # Used to show IP counts in full without scientific notation
 
 use Socket qw(PF_UNSPEC PF_INET PF_INET6 SOCK_STREAM inet_ntoa);
 use Socket6;
@@ -19,10 +20,9 @@ use Socket6;
 use Net::DNS;
 use Net::Netmask;
 
-# Notes:
+# Perl Module notes:
 #    Data::Dumper is loaded dynamically by the "-f perl" option
-#    JSON is loaded dynamically by the "-f json" or "-j" option
-#    Math::BigInt is loaded dynamically by the "-b" option
+#    JSON is loaded dynamically by the "-f json" option
 
 ###
 ### Constants
@@ -358,8 +358,8 @@ sub countIPs($$) {
 		return;
 	}
 
-	$data{"count"}{"ip6count"} = $OPTS{'b'} ? Math::BigInt->bzero : 0;
-	$data{"count"}{"ip4count"} = $OPTS{'b'} ? Math::BigInt->bzero : 0;
+	$data{"count"}{"ip6count"} = Math::BigInt->bzero;
+	$data{"count"}{"ip4count"} = Math::BigInt->bzero;
 	foreach my $c (@uniqueCIDRs) {
 		my $count = getCIDRCount($c);
 		if ($count < 0) {
@@ -375,10 +375,8 @@ sub countIPs($$) {
 	}
 
 	# Convert total counts to strings so that JSON can use it
-	if ($OPTS{'b'}) {
-		$data{"count"}{"ip4count"} = $data{"count"}{"ip4count"}->bstr();
-		$data{"count"}{"ip6count"} = $data{"count"}{"ip6count"}->bstr();
-	}
+	$data{"count"}{"ip4count"} = $data{"count"}{"ip4count"}->bstr();
+	$data{"count"}{"ip6count"} = $data{"count"}{"ip6count"}->bstr();
 
 	if ($domain eq $RESULT{"query"}) {
 		foreach my $ipv (qw/ip4 ip6/) {
@@ -782,7 +780,7 @@ sub getCIDRCount($) {
 		return $RESULT{"state"}{"cidrs"}{$cidr};
 	}
 
-	my $size = $OPTS{'b'} ? Math::BigInt->bzero() : 0;
+	my $size = Math::BigInt->bzero();
 	# Net::Netmask doesn't handle IPv4-mapped addresses.
 	if ($cidr =~ m/::ffff:[0-9.]+(\/([0-9]+))/) {
 		my $netmask = $2;
@@ -790,13 +788,8 @@ sub getCIDRCount($) {
 			# Assume /128
 			$size = 1;
 		} else {
-			if ($OPTS{'b'}) {
-				my $n = Math::Size->new(128 - $netmask);
-				$size = $n->bpow(2);
-			} else {
-				my $n = 128 - $netmask;
-				$size = (2**$n);
-			}
+			my $n = Math::Size->new(128 - $netmask);
+			$size = $n->bpow(2); # $size = (2**$n);
 		}
 		$RESULT{"state"}{"cidrs"}{$cidr} = $size;
 		return $size;
@@ -807,12 +800,7 @@ sub getCIDRCount($) {
 		return -1;
 	}
 
-	$size = $block->size();
-	if ($cidr =~ m/:/) {
-		$size = $OPTS{'b'} ? $size : $size->numify();
-	}
-
-	$RESULT{"state"}{"cidrs"}{$cidr} = $size;
+	$size = $RESULT{"state"}{"cidrs"}{$cidr} = $block->size();
 	return $size;
 }
 
@@ -968,7 +956,7 @@ sub getResolver($) {
 
 sub getTotalCIDRCount($) {
 	my ($aref) = @_;
-	my $count = $OPTS{'b'} ? Math::BigInt->bzero : 0;
+	my $count = Math::BigInt->bzero;
 
 	my %cidrs = map { $_ => 1 } @{$aref};
 
@@ -1000,10 +988,8 @@ sub init() {
 	$OPTS{'f'} = 'text'; # Set default format to "text"
 	$ok = GetOptions(
 			 "expand|e" 	=> \$OPTS{'e'},
-			 "bigint|b" 	=> \$OPTS{'b'},
 			 "format|f=s" 	=> \$OPTS{'f'},
 			 "help|h" 	=> \$OPTS{'h'},
-			 "json|j" 	=> sub { $OPTS{'f'} = 'json'; },
 			 "policy|p=s"   => \$OPTS{'p'},
 			 "resolver|r=s"	=> \$OPTS{'r'},
 			 "verbose|v+" 	=> sub { $OPTS{'v'}++; },
@@ -1017,10 +1003,6 @@ sub init() {
 		usage($ok);
 		exit(!$ok);
 		# NOTREACHED
-	}
-
-	if ($OPTS{'b'}) {
-		use Math::BigInt;
 	}
 
 	if ($OPTS{'f'} eq 'json') {
@@ -1078,7 +1060,7 @@ sub matchSPF($$) {
 	if ($txt =~ m/^"?v=spf1 (.*)/si) {
 		my $l = length($txt);
 		if ($l > MAXLENGTH) {
-			spfError("SPF record for '$domain' too long ($l > " . MAXLENGTH . ").", $domain, "warn");
+			spfError("SPF record for \"$domain\" too long ($l > " . MAXLENGTH . ").", $domain, "warn");
 		}
 		$spf = $1;
 	}
@@ -1321,7 +1303,7 @@ sub printResults() {
 	printExpanded($domain, 1);
 
 	print "\n";
-	my $m = "SPF record for domain '$domain': ";
+	my $m = "SPF record for domain \"$domain\": ";
 	if ($domain eq "none") {
 		$m = "Given SPF record                  : ";
 	}
@@ -1385,12 +1367,10 @@ sub usage($) {
 	my $FH = $err ? \*STDERR : \*STDOUT;
 
 	print $FH <<EOH
-Usage: $PROGNAME [-Vbhjv] [-f format] [-r address] -p policy | domain
+Usage: $PROGNAME [-Vhv] [-f format] [-r address] -p policy | domain
         -V          print version information and exit
-        -b          support large numbers
         -f format   output format (json, perl, text)
 	-h          print this help and exit
-	-j          same as "-f json"
 	-p policy   expand the given policy
 	-r address  explicitly query this resolver
 	-v          increase verbosity
