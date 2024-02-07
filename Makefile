@@ -21,7 +21,7 @@ install: prep
 	install -c -m 444 doc/${NAME}.1 ${PREFIX}/share/man/man1/${NAME}.1
 
 clean:
-	rm -f src/${NAME}
+	rm -f src/${NAME} doc/${NAME}.1.txt
 
 man: doc/${NAME}.1.txt
 
