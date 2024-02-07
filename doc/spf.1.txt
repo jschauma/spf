@@ -4,7 +4,7 @@ NAME
      spf - report on the given domain's use of SPF
 
 SYNOPSIS
-     spf [-Vhjv] [-p policy] [-r address] domain
+     spf [-Vhv] [-f format] [-p policy] [-r address] domain
 
 DESCRIPTION
      The spf tool allows you to inspect the Sender Policy Framework DNS records
@@ -15,9 +15,9 @@ OPTIONS
 
      -V		 Print version information and exit.
 
-     -h		 Display help and exit.
+     -f format   Output format (json, perl, text).
 
-     -j		 Generate output in json format.
+     -h		 Display help and exit.
 
      -p policy	 Expand and report on the given policy.	 Note: policy needs to
 		 be quoted; see EXAMPLES.
@@ -61,7 +61,8 @@ SEE ALSO
 
 HISTORY
      spf was originally written by Jan Schaumann <jschauma@netmeister.org> in
-     July 2022.
+     July 2022, with contributions by Royce Williams, Patrick Proniewski, and
+     Randolf Richardson.
 
 BUGS
      Please file bugs and feature requests by emailing the author.
