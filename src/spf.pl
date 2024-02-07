@@ -1,4 +1,4 @@
-#! /usr/bin/perl -Tw
+#! /usr/local/bin/perl -Tw
 #
 # This tool can expand and report on the given domains SPF use.
 # This is accomplished by (possibly recursive) inspection of the DNS
