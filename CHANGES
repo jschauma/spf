@@ -4,7 +4,7 @@
 * added big integer support to show exact IP address counts
 * added option "-f" so that other output formats can easily be supported
   with "-f json" (which replaces "-j") and set "-f text" as the default
-* added Perl source output format option "-b perl"
+* added Perl source output format option "-f perl"
 * some modules will be loaded only when needed by relevant options
 * various minor cosmetic improvements
 
