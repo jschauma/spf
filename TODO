@@ -2,3 +2,6 @@
 - dedupe IP counts: individual IPs or smaller CIDRs
   might be included in larger CIDRs, skewing the total
   count
+- insert thousands-separators, and in a locale-specific
+  manner, to large numbers (e.g., IP address counts) in
+  the text output mode (-f text)
