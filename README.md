@@ -58,9 +58,9 @@ Total counts:
     Total # of 'exists' directives  : 1
     Total # of 'include' directives : 7
     Total # of ip4 directives       : 45
-    Total # of ip4 addresses        : 870171
+    Total # of ip4 addresses        : 870,171
     Total # of ip6 directives       : 11
-    Total # of ip6 addresses        : 29712752120897178112958136320
+    Total # of ip6 addresses        : 29,712,752,120,897,178,112,958,136,320
 
 All others: softfail
 ```

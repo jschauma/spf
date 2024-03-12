@@ -1,3 +1,6 @@
+0.8 (2024-03-11)
+* pretty-print large numbers with thousands-separator
+
 0.7 (2024-02-06)
 * fixed a regular expression to use \t instead of a literal tab
 * changed variable named $nm to $netmask

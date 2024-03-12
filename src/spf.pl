@@ -14,6 +14,7 @@ use Getopt::Long;
     Getopt::Long::Configure("bundling");
 use Math::BigInt; # Used to show IP counts in full without scientific notation
 
+use POSIX qw(locale_h);
 use Socket qw(PF_UNSPEC PF_INET PF_INET6 SOCK_STREAM inet_ntoa);
 use Socket6;
 
@@ -46,7 +47,7 @@ use constant MAXLENGTH => 450;
 my %OPTS = ( v => 0 );
 my $PROGNAME = basename($0);
 my $RETVAL = 0;
-my $VERSION = 0.7;
+my $VERSION = 0.8;
 
 # The final result in json representation:
 # {
@@ -773,6 +774,16 @@ sub expandSPF($$$$) {
 	}
 }
 
+sub formatNumber($) {
+	my ($num) = @_;
+	my $h = localeconv();
+	my $t = $h->{mon_thousands_sep};
+	$t //= ',';
+
+	while ($num =~  s/^(-?\d+)(\d\d\d)/$1$t$2/) {};
+	return $num;
+}
+
 sub getCIDRCount($) {
 	my ($cidr) = @_;
 
@@ -1281,12 +1292,12 @@ sub printCount($$$) {
 		if ($stats{"${ipv}-directives"}) {
 			print "    ";
 			print "Total # of $ipv directives       : ";
-			print $stats{"${ipv}-directives"} . "\n";
+			print formatNumber($stats{"${ipv}-directives"}) . "\n";
 		}
 		if ($stats{"${ipv}count"}) {
 			print "    ";
 			print "Total # of $ipv addresses        : ";
-			print $stats{"${ipv}count"} . "\n";
+			print formatNumber($stats{"${ipv}count"}) . "\n";
 		}
 	}
 
